@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - NAVIGo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar dashboard-nav">
+        <div class="nav-brand">
+            <h1>🧭 NAVIGo</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="/home">Home</a>
+            <a href="/dashboard" class="active">Dashboard</a>
+            <a href="/plan">Plan Trip</a>
+            <a href="/booking">Bookings</a>
+            <a href="/logout" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container dashboard-container">
+        <div class="dashboard-layout">
+            <aside class="chatbot-sidebar">
+                <div class="chatbot-header">
+                    <h3>🤖 AI Travel Assistant</h3>
+                    <p>Ask me anything about your travel plans!</p>
+                </div>
+                <div class="chatbot-messages" id="chat-messages">
+                    <div class="message bot-message">
+                        <p>Hello! I'm your NAVIGo AI assistant. I can help you with:</p>
+                        <ul>
+                            <li>Best time to visit destinations</li>
+                            <li>Budget planning</li>
+                            <li>Cultural tips and customs</li>
+                            <li>Visa and travel requirements</li>
+                            <li>Safety information</li>
+                        </ul>
+                        <p>What would you like to know?</p>
+                    </div>
+                </div>
+                <div class="chatbot-input">
+                    <input type="text" id="chat-input" placeholder="Type your question..." onkeypress="handleChatEnter(event)">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </aside>
+
+            <main class="dashboard-main">
+                <section class="dashboard-welcome">
+                    <h1>Welcome Back! 👋</h1>
+                    <p>Here are your personalized travel recommendations</p>
+                </section>
+
+                <section class="dashboard-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon">📍</div>
+                        <div class="stat-info">
+                            <h3 id="visited-count">0</h3>
+                            <p>Places Visited</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-info">
+                            <h3 id="plans-count">0</h3>
+                            <p>Travel Plans</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎫</div>
+                        <div class="stat-info">
+                            <h3 id="bookings-count">0</h3>
+                            <p>Active Bookings</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-info">
+                            <h3 id="reviews-count">0</h3>
+                            <p>Reviews Given</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="recommendations">
+                    <h2>Recommended For You</h2>
+                    <div class="recommendations-grid" id="recommendations-grid">
+                        <div class="loading">Loading recommendations...</div>
+                    </div>
+                </section>
+
+                <section class="weather-dashboard">
+                    <h2>Weather Updates</h2>
+                    <div class="weather-grid" id="weather-grid">
+                        <p>Select destinations to see weather forecasts</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            const chatMessages = document.getElementById('chat-messages');
+            
+            // Add user message
+            chatMessages.innerHTML += `
+                <div class="message user-message">
+                    <p>${message}</p>
+                </div>
+            `;
+            
+            input.value = '';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Get bot response
+            try {
+                const response = await fetch('/api/chatbot', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message})
+                });
+                
+                const data = await response.json();
+                
+                chatMessages.innerHTML += `
+                    <div class="message bot-message">
+                        <p>${data.response}</p>
+                    </div>
+                `;
+                
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Chatbot error:', error);
+            }
+        }
+
+        function handleChatEnter(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function loadDashboardData() {
+            try {
+                const response = await fetch('/api/destinations?sort=popularity');
+                const destinations = await response.json();
+                
+                const grid = document.getElementById('recommendations-grid');
+                grid.innerHTML = destinations.slice(0, 6).map(dest => `
+                    <div class="recommendation-card">
+                        <img src="${dest.image_url}" alt="${dest.name}">
+                        <div class="rec-info">
+                            <h3>${dest.name}</h3>
+                            <p>${dest.category}</p>
+                            <span class="rating">⭐ ${dest.rating}</span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Load bookings count
+                const bookingsResponse = await fetch('/api/bookings/my');
+                const bookings = await bookingsResponse.json();
+                document.getElementById('bookings-count').textContent = bookings.length;
+                
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        loadDashboardData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan Trip - NAVIGo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-sA+4JxzG4xo+lRG0zY6kGZ5GmQmfQ4v7+2R3q0i0Xok=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1j7kPp2QWbV7gkGkXH69Cw4vj1p2JbWkBfVV3s+8=" crossorigin=""></script>
+    <style>
+        .route-map-container {
+            width: 100%;
+            height: 500px;
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .route-details {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-top: 1.5rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .route-segment {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-left: 3px solid var(--primary);
+            margin: 1rem 0;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .route-number {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 1rem;
+        }
+
+        .route-info {
+            flex: 1;
+        }
+
+        .route-info h4 {
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .route-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .trip-summary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 2rem;
+            border-radius: 16px;
+            margin-top: 1.5rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .summary-item {
+            background: rgba(255,255,255,0.15);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .summary-item .value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-item .label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .action-buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .optimize-btn {
+            background: var(--warning);
+            color: white;
+        }
+
+        .waypoint-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .waypoint-item {
+            background: white;
+            padding: 1rem;
+            margin: 0.8rem 0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .waypoint-marker {
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .custom-route-marker span {
+            display: inline-flex;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            border: 3px solid #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar dashboard-nav">
+        <div class="nav-brand">
+            <h1>🧭 NAVIGo</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="/home">Home</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/plan" class="active">Plan Trip</a>
+            <a href="/booking">Bookings</a>
+            <a href="/logout" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="plan-layout">
+            <div class="plan-sidebar">
+                <h2>🗓️ Your Travel Plan</h2>
+                <div class="plan-dates">
+                    <div class="form-group">
+                        <label>📅 Start Date</label>
+                        <input type="date" id="start-date" onchange="updatePlan()">
+                    </div>
+                    <div class="form-group">
+                        <label>📅 End Date</label>
+                        <input type="date" id="end-date" onchange="updatePlan()">
+                    </div>
+                </div>
+                
+                <div class="selected-destinations" id="selected-destinations">
+                    <p class="empty-state">No destinations added yet</p>
+                </div>
+                
+                <div class="plan-summary">
+                    <h3>📊 Trip Summary</h3>
+                    <div class="summary-item">
+                        <span>Duration:</span>
+                        <strong id="trip-duration">- days</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Destinations:</span>
+                        <strong id="dest-count">0</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Total Distance:</span>
+                        <strong id="total-distance">- km</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Travel Time:</span>
+                        <strong id="total-time">- hrs</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Est. Budget:</span>
+                        <strong id="est-budget">₹0</strong>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary btn-full" onclick="calculateRoute()">
+                    🗺️ Show Route on Map
+                </button>
+                <button class="btn btn-secondary btn-full optimize-btn" onclick="optimizeRoute()">
+                    ⚡ Optimize Route
+                </button>
+                <button class="btn btn-primary btn-full" onclick="savePlan()">
+                    💾 Save Plan
+                </button>
+                <button class="btn btn-secondary btn-full" onclick="proceedToBooking()">
+                    🎫 Book Everything
+                </button>
+                <button class="btn btn-secondary btn-full" onclick="clearPlan()">
+                    🗑️ Clear All
+                </button>
+            </div>
+            
+            <div class="plan-main">
+                <section class="plan-search">
+                    <h2>🌍 Add Destinations to Your Plan</h2>
+                    <input type="text" id="plan-search" placeholder="Search destinations..." oninput="searchDestinations()">
+                </section>
+                
+                <div class="destinations-list" id="destinations-list">
+                    <div class="loading">Loading destinations...</div>
+                </div>
+                
+                <section class="route-section" id="route-section" style="display:none;">
+                    <h2>🗺️ Your Travel Route</h2>
+                    <div id="route-map" class="route-map-container"></div>
+                    
+                    <div class="route-details" id="route-details">
+                        <h3>📍 Route Details</h3>
+                        <div id="directions-panel"></div>
+                    </div>
+
+                    <div class="trip-summary" id="trip-summary-detailed">
+                        <h3>🎯 Complete Trip Overview</h3>
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="value" id="summary-destinations">0</div>
+                                <div class="label">Places to Visit</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="value" id="summary-distance">0 km</div>
+                                <div class="label">Total Distance</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="value" id="summary-time">0 hrs</div>
+                                <div class="label">Driving Time</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="value" id="summary-days">0</div>
+                                <div class="label">Days</div>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons-grid">
+                            <button class="btn btn-primary" onclick="openInGoogleMaps()">
+                                🗺️ Open in Google Maps
+                            </button>
+                            <button class="btn btn-primary" onclick="shareRoute()">
+                                📤 Share Route
+                            </button>
+                            <button class="btn btn-primary" onclick="downloadItinerary()">
+                                📥 Download Itinerary
+                            </button>
+                            <button class="btn btn-primary" onclick="printRoute()">
+                                🖨️ Print Route
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedDestinations = [];
+        let allDestinations = [];
+        let map = null;
+        let routeLayer = null;
+        let markersLayer = null;
+        let routeData = null;
+
+        async function loadDestinations() {
+            try {
+                const response = await fetch('/api/destinations?sort=popularity');
+                allDestinations = await response.json();
+                displayDestinationsList(allDestinations);
+            } catch (error) {
+                console.error('Error loading destinations:', error);
+            }
+        }
+
+        function displayDestinationsList(destinations) {
+            const list = document.getElementById('destinations-list');
+            
+            list.innerHTML = destinations.map(dest => `
+                <div class="destination-item">
+                    <img src="${dest.image_url}" alt="${dest.name}">
+                    <div class="dest-item-info">
+                        <h3>${dest.name}</h3>
+                        <p>${dest.category} • ${dest.state} • ⭐ ${dest.rating}</p>
+                        <p class="dest-desc">${dest.description}</p>
+                    </div>
+                    <button class="btn btn-add" onclick="addDestination(${dest.id})" id="btn-${dest.id}">
+                        + Add
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addDestination(destId) {
+            const dest = allDestinations.find(d => d.id === destId);
+            if (!dest || selectedDestinations.find(d => d.id === destId)) return;
+            
+            selectedDestinations.push(dest);
+            updateSelectedList();
+            updatePlanSummary();
+            
+            const btn = document.getElementById(`btn-${destId}`);
+            btn.textContent = '✓ Added';
+            btn.disabled = true;
+            btn.classList.add('btn-added');
+        }
+
+        function removeDestination(destId) {
+            selectedDestinations = selectedDestinations.filter(d => d.id !== destId);
+            updateSelectedList();
+            updatePlanSummary();
+            
+            const btn = document.getElementById(`btn-${destId}`);
+            if (btn) {
+                btn.textContent = '+ Add';
+                btn.disabled = false;
+                btn.classList.remove('btn-added');
+            }
+
+            // Hide route if destinations are removed
+            if (selectedDestinations.length < 2) {
+                document.getElementById('route-section').style.display = 'none';
+            }
+        }
+
+        function updateSelectedList() {
+            const container = document.getElementById('selected-destinations');
+            
+            if (selectedDestinations.length === 0) {
+                container.innerHTML = '<p class="empty-state">No destinations added yet</p>';
+                return;
+            }
+            
+            container.innerHTML = selectedDestinations.map((dest, index) => `
+                <div class="selected-dest-card">
+                    <span class="dest-number">${index + 1}</span>
+                    <div class="selected-dest-info">
+                        <h4>${dest.name}</h4>
+                        <p>${dest.state}</p>
+                    </div>
+                    <button class="btn-remove" onclick="removeDestination(${dest.id})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function updatePlanSummary() {
+            document.getElementById('dest-count').textContent = selectedDestinations.length;
+            
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                document.getElementById('trip-duration').textContent = `${days} days`;
+                
+                const budget = selectedDestinations.length * 5000 * days;
+                document.getElementById('est-budget').textContent = `₹${budget.toLocaleString()}`;
+            }
+        }
+
+        function initMap() {
+            if (!map) {
+                map = L.map('route-map').setView([20.5937, 78.9629], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+                markersLayer = L.layerGroup().addTo(map);
+            }
+        }
+
+        async function calculateRoute() {
+            if (selectedDestinations.length < 2) {
+                alert('⚠️ Please add at least 2 destinations to calculate route');
+                return;
+            }
+
+            document.getElementById('route-section').style.display = 'block';
+            document.getElementById('route-section').scrollIntoView({ behavior: 'smooth' });
+
+            await fetchAndRenderRoute();
+        }
+
+        async function fetchAndRenderRoute(precomputedRoute = null) {
+            initMap();
+
+            if (!precomputedRoute) {
+                const coords = selectedDestinations.map(d => `${d.longitude},${d.latitude}`).join(';');
+                const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+                
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.code !== 'Ok') {
+                        alert('❌ Could not calculate route: ' + (data.message || data.code));
+                        return;
+            }
+                    precomputedRoute = data.routes[0];
+                } catch (error) {
+                    console.error('Route error:', error);
+                    alert('❌ Could not reach the routing service. Please try again.');
+                    return;
+                }
+            }
+
+            routeData = precomputedRoute;
+            drawRouteOnMap(routeData);
+            displayRouteDetails(routeData);
+        }
+
+        function drawRouteOnMap(route) {
+            initMap();
+            
+            const coordinates = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+            routeLayer = L.polyline(coordinates, {
+                color: '#4F46E5',
+                weight: 5,
+                opacity: 0.9
+            }).addTo(map);
+
+            if (!markersLayer) {
+                markersLayer = L.layerGroup().addTo(map);
+            }
+            markersLayer.clearLayers();
+
+            selectedDestinations.forEach((dest, index) => {
+                const marker = L.marker([dest.latitude, dest.longitude], {
+                    icon: L.divIcon({
+                        className: 'custom-route-marker',
+                        html: `<span>${index + 1}</span>`
+                    })
+                });
+                marker.bindPopup(`<strong>${dest.name}</strong><br>${dest.state}`);
+                markersLayer.addLayer(marker);
+            });
+
+            map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+        }
+
+        function displayRouteDetails(route) {
+            const totalDistanceKm = (route.distance / 1000).toFixed(1);
+            const totalDurationHrs = (route.duration / 3600).toFixed(1);
+
+            document.getElementById('total-distance').textContent = `${totalDistanceKm} km`;
+            document.getElementById('total-time').textContent = `${totalDurationHrs} hrs`;
+            document.getElementById('summary-destinations').textContent = selectedDestinations.length;
+            document.getElementById('summary-distance').textContent = `${totalDistanceKm} km`;
+            document.getElementById('summary-time').textContent = `${totalDurationHrs} hrs`;
+            
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            if (startDate && endDate) {
+                const days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+                document.getElementById('summary-days').textContent = days;
+            }
+
+            const legs = route.legs || [];
+            let directionsHTML = '<div class="waypoint-list">';
+            
+            legs.forEach((leg, index) => {
+                directionsHTML += `
+                    <div class="route-segment">
+                        <div class="route-number">${index + 1}</div>
+                        <div class="route-info">
+                            <h4>${selectedDestinations[index].name} → ${selectedDestinations[index + 1].name}</h4>
+                            <div class="route-stats">
+                                <span>📏 ${(leg.distance / 1000).toFixed(1)} km</span>
+                                <span>⏱️ ${formatDuration(leg.duration)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            directionsHTML += '</div>';
+            document.getElementById('directions-panel').innerHTML = directionsHTML;
+        }
+
+        function formatDuration(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.round((seconds % 3600) / 60);
+            if (hrs === 0) return `${mins} mins`;
+            return `${hrs}h ${mins}m`;
+        }
+
+        async function optimizeRoute() {
+            if (selectedDestinations.length < 3) {
+                alert('⚠️ Need at least 3 destinations to optimize');
+                return;
+            }
+
+            const previousDistance = routeData ? routeData.distance : null;
+            const coords = selectedDestinations.map(d => `${d.longitude},${d.latitude}`).join(';');
+            const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=last&roundtrip=false&overview=full&geometries=geojson`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.code !== 'Ok') {
+                    alert('❌ Could not optimize route: ' + (data.message || data.code));
+                    return;
+                }
+
+                const newOrder = data.waypoints
+                    .map((wp, idx) => ({ newIndex: wp.waypoint_index, dest: selectedDestinations[idx] }))
+                    .sort((a, b) => a.newIndex - b.newIndex)
+                    .map(item => item.dest);
+                    
+                selectedDestinations = newOrder;
+                    updateSelectedList();
+                document.getElementById('route-section').style.display = 'block';
+
+                const optimizedRoute = data.trips[0];
+                routeData = optimizedRoute;
+                drawRouteOnMap(optimizedRoute);
+                displayRouteDetails(optimizedRoute);
+
+                if (previousDistance) {
+                    const diff = previousDistance - optimizedRoute.distance;
+                    if (diff > 0) {
+                        const percent = ((diff / previousDistance) * 100).toFixed(1);
+                        alert(`✅ Route optimized! Distance reduced by ${percent}%`);
+                    } else {
+                        alert('✅ Route re-ordered for better flow.');
+                    }
+                } else {
+                    alert('✅ Route optimized!');
+                }
+            } catch (error) {
+                console.error('Optimize error:', error);
+                alert('❌ Could not optimize route right now. Please try again.');
+                }
+        }
+
+        function openInGoogleMaps() {
+            if (selectedDestinations.length < 2) return;
+            
+            const origin = `${selectedDestinations[0].latitude},${selectedDestinations[0].longitude}`;
+            const destination = `${selectedDestinations[selectedDestinations.length - 1].latitude},${selectedDestinations[selectedDestinations.length - 1].longitude}`;
+            
+            let waypoints = '';
+            if (selectedDestinations.length > 2) {
+                waypoints = selectedDestinations.slice(1, -1)
+                    .map(d => `${d.latitude},${d.longitude}`)
+                    .join('|');
+            }
+            
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? '&waypoints=' + waypoints : ''}&travelmode=driving`;
+            window.open(url, '_blank');
+        }
+
+        function shareRoute() {
+            const routeText = selectedDestinations.map((d, i) => `${i + 1}. ${d.name}, ${d.state}`).join('\n');
+            const text = `My NAVIGo Trip Plan:\n\n${routeText}\n\nTotal Distance: ${document.getElementById('total-distance').textContent}\nTravel Time: ${document.getElementById('total-time').textContent}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'My Trip Plan - NAVIGo',
+                    text: text
+                });
+            } else {
+                navigator.clipboard.writeText(text);
+                alert('✅ Route copied to clipboard!');
+            }
+        }
+
+        function downloadItinerary() {
+            const content = selectedDestinations.map((d, i) => 
+                `${i + 1}. ${d.name}, ${d.state}\n   ${d.description}\n`
+            ).join('\n');
+            
+            const blob = new Blob([`NAVIGo Trip Itinerary\n\n${content}`], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'navigo-itinerary.txt';
+            a.click();
+        }
+
+        function printRoute() {
+            window.print();
+        }
+
+        async function savePlan() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (!startDate || !endDate) {
+                alert('⚠️ Please select start and end dates');
+                return;
+            }
+            
+            if (selectedDestinations.length === 0) {
+                alert('⚠️ Please add at least one destination');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/plan/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        destination_ids: selectedDestinations.map(d => d.id),
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('✅ Travel plan saved successfully!');
+                }
+            } catch (error) {
+                console.error('Error saving plan:', error);
+                alert('❌ Failed to save plan');
+            }
+        }
+
+        function proceedToBooking() {
+            if (selectedDestinations.length === 0) {
+                alert('⚠️ Please add destinations first');
+                return;
+            }
+
+            // Save to session storage for booking page
+            const planData = {
+                destinations: selectedDestinations,
+                startDate: document.getElementById('start-date').value,
+                endDate: document.getElementById('end-date').value,
+                distance: document.getElementById('total-distance').textContent,
+                duration: document.getElementById('total-time').textContent
+            };
+            
+            sessionStorage.setItem('tripPlan', JSON.stringify(planData));
+            window.location.href = '/booking?from=plan';
+        }
+
+        function clearPlan() {
+            if (confirm('Clear all destinations from plan?')) {
+                selectedDestinations = [];
+                updateSelectedList();
+                updatePlanSummary();
+                document.getElementById('start-date').value = '';
+                document.getElementById('end-date').value = '';
+                document.getElementById('route-section').style.display = 'none';
+                
+                document.querySelectorAll('.btn-added').forEach(btn => {
+                    btn.textContent = '+ Add';
+                    btn.disabled = false;
+                    btn.classList.remove('btn-added');
+                });
+            }
+        }
+
+        function searchDestinations() {
+            const query = document.getElementById('plan-search').value.toLowerCase();
+            if (query === '') {
+                displayDestinationsList(allDestinations);
+            } else {
+                const filtered = allDestinations.filter(d => 
+                    d.name.toLowerCase().includes(query) || 
+                    d.category.toLowerCase().includes(query) ||
+                    d.state.toLowerCase().includes(query)
+                );
+                displayDestinationsList(filtered);
+            }
+        }
+
+        loadDestinations();
+    </script>
+</body>
+</html>

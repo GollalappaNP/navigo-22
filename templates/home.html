@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - NAVIGo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places"></script>
+</head>
+<body>
+    <nav class="navbar dashboard-nav">
+        <div class="nav-brand">
+            <h1>🧭 NAVIGo</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="/home" class="active">Home</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/plan">Plan Trip</a>
+            <a href="/booking">Bookings</a>
+            <a href="/logout" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section class="hero-search">
+            <h1>Explore 100 Top Destinations in India</h1>
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="Search destinations, states, categories..." oninput="handleSearch()">
+                <button onclick="handleSearch()">🔍 Search</button>
+            </div>
+        </section>
+
+        <section class="filters">
+            <div class="filter-group">
+                <label>🗺️ State:</label>
+                <select id="state-filter" onchange="loadDestinations()">
+                    <option value="all">All States</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>📂 Category:</label>
+                <select id="category-filter" onchange="loadDestinations()">
+                    <option value="all">All Destinations</option>
+                    <option value="Heritage">Heritage</option>
+                    <option value="Beach">Beach</option>
+                    <option value="Adventure">Adventure</option>
+                    <option value="Nature">Nature</option>
+                    <option value="Religious">Religious</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>🌤️ Weather:</label>
+                <select id="weather-filter" onchange="loadDestinations()">
+                    <option value="all">Any Weather</option>
+                    <option value="cool">Cool (10-25°C)</option>
+                    <option value="warm">Warm (25-35°C)</option>
+                    <option value="rainy">Monsoon</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>⭐ Sort By:</label>
+                <select id="sort-filter" onchange="loadDestinations()">
+                    <option value="popularity">Popularity</option>
+                    <option value="rating">Rating</option>
+                    <option value="name">Name</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="quick-weather">
+            <h2>🌦️ Best Destinations Right Now (Based on Current Weather)</h2>
+            <div class="weather-recommendations" id="weather-recommendations">
+                <p class="loading">Loading weather-based recommendations...</p>
+            </div>
+        </section>
+
+        <section class="categories">
+            <div class="category-pills">
+                <button class="pill active" onclick="filterCategory('all')">🌏 All (100)</button>
+                <button class="pill" onclick="filterCategory('Heritage')">🏛️ Heritage</button>
+                <button class="pill" onclick="filterCategory('Beach')">🏖️ Beach</button>
+                <button class="pill" onclick="filterCategory('Adventure')">⛰️ Adventure</button>
+                <button class="pill" onclick="filterCategory('Nature')">🌳 Nature</button>
+                <button class="pill" onclick="filterCategory('Religious')">🕉️ Religious</button>
+            </div>
+        </section>
+
+        <section class="destinations-grid" id="destinations-grid">
+            <div class="loading">Loading 100 destinations...</div>
+        </section>
+    </div>
+
+    <!-- Enhanced Modal with Map -->
+    <div id="destination-modal" class="modal">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        let allDestinations = [];
+        let map = null;
+        let marker = null;
+
+        async function loadDestinations() {
+            const category = document.getElementById('category-filter').value;
+            const sort = document.getElementById('sort-filter').value;
+            const state = document.getElementById('state-filter').value;
+            const weather = document.getElementById('weather-filter').value;
+            
+            try {
+                const response = await fetch(`/api/destinations?category=${category}&sort=${sort}&state=${state}&weather=${weather}`);
+                allDestinations = await response.json();
+                displayDestinations(allDestinations);
+                updateDestinationCount();
+            } catch (error) {
+                console.error('Error loading destinations:', error);
+            }
+        }
+
+        async function loadStates() {
+            try {
+                const response = await fetch('/api/states');
+                const states = await response.json();
+                
+                const select = document.getElementById('state-filter');
+                states.forEach(state => {
+                    const option = document.createElement('option');
+                    option.value = state.state;
+                    option.textContent = `${state.state} (${state.count})`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading states:', error);
+            }
+        }
+
+        async function loadWeatherRecommendations() {
+            try {
+                const response = await fetch('/api/weather-recommendations');
+                const recommendations = await response.json();
+                
+                const container = document.getElementById('weather-recommendations');
+                
+                if (recommendations.length === 0) {
+                    container.innerHTML = '<p>Weather recommendations will appear here when available.</p>';
+                    return;
+                }
+                
+                container.innerHTML = recommendations.map(rec => `
+                    <div class="weather-rec-card" onclick="showDestinationDetails(${rec.id})">
+                        <h4>${rec.name}</h4>
+                        <p class="temp">${rec.temperature}°C</p>
+                        <p>${rec.weather}</p>
+                        <button class="btn btn-small">View Details</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Weather recommendations error:', error);
+                document.getElementById('weather-recommendations').innerHTML = 
+                    '<p>Enable weather API to see current recommendations.</p>';
+            }
+        }
+
+        function displayDestinations(destinations) {
+            const grid = document.getElementById('destinations-grid');
+            
+            if (destinations.length === 0) {
+                grid.innerHTML = '<p class="no-results">No destinations found matching your filters</p>';
+                return;
+            }
+            
+            grid.innerHTML = destinations.map(dest => `
+                <div class="destination-card" onclick="showDestinationDetails(${dest.id})">
+                    <div class="dest-image" style="background-image: url('${dest.image_url}')">
+                        <span class="dest-badge">${dest.category}</span>
+                    </div>
+                    <div class="dest-info">
+                        <h3>${dest.name}</h3>
+                        <p class="dest-state">📍 ${dest.state}</p>
+                        <p class="dest-description">${dest.description}</p>
+                        <div class="dest-meta">
+                            <span class="rating">⭐ ${dest.rating}</span>
+                            <span class="popularity">👥 ${dest.popularity}</span>
+                        </div>
+                        <p class="best-time">🗓️ Best: ${dest.best_time}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function showDestinationDetails(destId) {
+            const dest = allDestinations.find(d => d.id === destId);
+            if (!dest) return;
+            
+            // Fetch weather data
+            const weatherResponse = await fetch(`/api/weather/${destId}`);
+            const weather = await weatherResponse.json();
+            
+            const modal = document.getElementById('destination-modal');
+            const body = document.getElementById('modal-body');
+            
+            body.innerHTML = `
+                <div class="modal-header-large">
+                    <img src="${dest.image_url}" alt="${dest.name}">
+                    <div class="modal-title-section">
+                        <h2>${dest.name}</h2>
+                        <p class="modal-location">📍 ${dest.state}, India</p>
+                        <div class="modal-badges">
+                            <span class="badge">${dest.category}</span>
+                            <span class="badge">⭐ ${dest.rating}/5</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-details-grid">
+                    <div class="detail-column">
+                        <div class="detail-section">
+                            <h3>About This Destination</h3>
+                            <p class="full-description">${dest.full_description}</p>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h3>📅 Best Time to Visit</h3>
+                            <p><strong>${dest.best_time}</strong></p>
+                        </div>
+                        
+                        <div class="detail-section weather-section ${weather.suitable ? 'weather-good' : 'weather-bad'}">
+                            <h3>🌦️ Current Weather</h3>
+                            <div class="weather-info">
+                                <img src="https://openweathermap.org/img/wn/${weather.icon}@2x.png" alt="weather">
+                                <div class="weather-details">
+                                    <p class="temp">${weather.temperature}°C</p>
+                                    <p class="feels-like">Feels like ${weather.feels_like}°C</p>
+                                    <p class="weather-desc">${weather.description}</p>
+                                    <p>💧 Humidity: ${weather.humidity}%</p>
+                                    <p>💨 Wind: ${weather.wind_speed} m/s</p>
+                                </div>
+                            </div>
+                            <div class="weather-recommendation ${weather.suitable ? 'suitable' : 'not-suitable'}">
+                                <p><strong>${weather.suitable ? '✅' : '⚠️'} ${weather.recommendation}</strong></p>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-actions">
+                            <button class="btn btn-primary" onclick="addToPlan(${destId})">📅 Add to Plan</button>
+                            <button class="btn btn-secondary" onclick="bookNow(${destId})">🎫 Book Now</button>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-column">
+                        <div class="detail-section">
+                            <h3>📍 Location on Map</h3>
+                            <div id="detail-map" style="width:100%;height:300px;border-radius:10px;"></div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h3>🎯 Quick Actions</h3>
+                            <div class="quick-actions">
+                                <button class="action-btn" onclick="viewOnMap(${dest.latitude}, ${dest.longitude})">
+                                    🗺️ Open in Google Maps
+                                </button>
+                                <button class="action-btn" onclick="getDirections(${dest.latitude}, ${dest.longitude})">
+                                    🧭 Get Directions
+                                </button>
+                                <button class="action-btn" onclick="shareDestination(${destId})">
+                                    📤 Share
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h3>💡 Travel Tips</h3>
+                            <ul class="tips-list">
+                                <li>Book accommodations in advance during peak season</li>
+                                <li>Carry valid ID for hotel check-ins</li>
+                                <li>Respect local customs and dress codes</li>
+                                <li>Stay hydrated and carry sunscreen</li>
+                                <li>Keep emergency contacts handy</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.style.display = 'block';
+            
+            // Initialize Google Map
+            setTimeout(() => {
+                const mapDiv = document.getElementById('detail-map');
+                if (mapDiv && window.google) {
+                    map = new google.maps.Map(mapDiv, {
+                        center: {lat: dest.latitude, lng: dest.longitude},
+                        zoom: 13
+                    });
+                    
+                    marker = new google.maps.Marker({
+                        position: {lat: dest.latitude, lng: dest.longitude},
+                        map: map,
+                        title: dest.name,
+                        animation: google.maps.Animation.DROP
+                    });
+                    
+                    // Add info window
+                    const infowindow = new google.maps.InfoWindow({
+                        content: `<div style="padding:10px;"><h4>${dest.name}</h4><p>${dest.state}</p></div>`
+                    });
+                    
+                    marker.addListener('click', () => {
+                        infowindow.open(map, marker);
+                    });
+                }
+            }, 100);
+        }
+
+        function closeModal() {
+            document.getElementById('destination-modal').style.display = 'none';
+            if (map) {
+                map = null;
+                marker = null;
+            }
+        }
+
+        function filterCategory(category) {
+            document.getElementById('category-filter').value = category;
+            const pills = document.querySelectorAll('.pill');
+            pills.forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            loadDestinations();
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            if (query === '') {
+                displayDestinations(allDestinations);
+            } else {
+                const filtered = allDestinations.filter(d => 
+                    d.name.toLowerCase().includes(query) || 
+                    d.description.toLowerCase().includes(query) ||
+                    d.full_description.toLowerCase().includes(query) ||
+                    d.state.toLowerCase().includes(query) ||
+                    d.category.toLowerCase().includes(query)
+                );
+                displayDestinations(filtered);
+            }
+        }
+
+        function addToPlan(destId) {
+            localStorage.setItem('planDest_' + destId, destId);
+            alert('✅ Added to your travel plan! Visit the Plan page to view and customize your itinerary.');
+            closeModal();
+        }
+
+        function bookNow(destId) {
+            window.location.href = '/booking?destination=' + destId;
+        }
+
+        function viewOnMap(lat, lon) {
+            window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank');
+        }
+
+        function getDirections(lat, lon) {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`, '_blank');
+        }
+
+        function shareDestination(destId) {
+            const dest = allDestinations.find(d => d.id === destId);
+            if (navigator.share) {
+                navigator.share({
+                    title: dest.name,
+                    text: dest.description,
+                    url: window.location.href
+                });
+            } else {
+                alert('Check out ' + dest.name + ' on NAVIGo!');
+            }
+        }
+
+        function updateDestinationCount() {
+            const pills = document.querySelectorAll('.pill');
+            pills[0].textContent = `🌏 All (${allDestinations.length})`;
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('destination-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Initialize
+        loadStates();
+        loadDestinations();
+        loadWeatherRecommendations();
+    </script>
+</body>
+</html>

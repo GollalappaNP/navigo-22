@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAVIGo - Intelligent Tourism System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="landing-container">
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>🧭 NAVIGo</h1>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#destinations">Destinations</a>
+                <a href="/login" class="btn-login">Login</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">Discover India Intelligently</h1>
+                <p class="hero-subtitle">Your AI-powered companion for exploring incredible destinations</p>
+                <div class="hero-buttons">
+                    <a href="/login" class="btn btn-primary">Get Started</a>
+                    <a href="#features" class="btn btn-secondary">Learn More</a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=1200" alt="Travel">
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <h2 class="section-title">Why Choose NAVIGo?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>AI Travel Assistant</h3>
+                    <p>Get personalized recommendations and instant answers to your travel queries</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌤️</div>
+                    <h3>Real-Time Weather</h3>
+                    <p>Plan your trips with live weather forecasts for every destination</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗺️</div>
+                    <h3>Smart Navigation</h3>
+                    <p>Integrated maps with routes and nearby attractions</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⭐</div>
+                    <h3>Top Destinations</h3>
+                    <p>Discover trending places based on ratings and popularity</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📅</div>
+                    <h3>Itinerary Planner</h3>
+                    <p>Create custom travel plans with estimated costs and timings</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎫</div>
+                    <h3>Easy Booking</h3>
+                    <p>Book guides, accommodations, and transportation seamlessly</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="destinations" class="preview-destinations">
+            <h2 class="section-title">Popular Destinations</h2>
+            <div class="destinations-carousel">
+                <div class="dest-card">
+                    <img src="https://images.unsplash.com/photo-1564507592333-c60657eea523?w=400" alt="Taj Mahal">
+                    <h3>Taj Mahal</h3>
+                    <p>Heritage · Agra</p>
+                </div>
+                <div class="dest-card">
+                    <img src="https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=400" alt="Goa">
+                    <h3>Goa Beaches</h3>
+                    <p>Beach · Goa</p>
+                </div>
+                <div class="dest-card">
+                    <img src="https://images.unsplash.com/photo-1599661046289-e31897846e41?w=400" alt="Jaipur">
+                    <h3>Jaipur</h3>
+                    <p>Heritage · Rajasthan</p>
+                </div>
+                <div class="dest-card">
+                    <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400" alt="Ladakh">
+                    <h3>Ladakh</h3>
+                    <p>Adventure · Himalayas</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="cta">
+            <h2>Ready to Start Your Journey?</h2>
+            <p>Join thousands of travelers exploring India intelligently</p>
+            <a href="/login" class="btn btn-primary btn-large">Sign Up Now</a>
+        </section>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>NAVIGo</h3>
+                    <p>Your intelligent travel companion</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <a href="#features">Features</a>
+                    <a href="#destinations">Destinations</a>
+                    <a href="/login">Login</a>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <p>Email: info@navigo.com</p>
+                    <p>Phone: +91-XXXX-XXXXXX</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 NAVIGo. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Booking - NAVIGo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .booking-wizard {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .wizard-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .wizard-steps::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+        }
+
+        .wizard-step {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            flex: 1;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid var(--border);
+            margin: 0 auto 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            transition: all 0.3s;
+        }
+
+        .wizard-step.active .step-circle {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .wizard-step.completed .step-circle {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .step-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .wizard-step.active .step-label {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .wizard-content {
+            display: none;
+        }
+
+        .wizard-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .service-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .service-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .service-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.15);
+        }
+
+        .service-card.selected {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .service-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .service-options {
+            display: grid;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .option-card {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: 60px 1fr auto;
+            gap: 1rem;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .option-card:hover {
+            border-color: var(--primary);
+        }
+
+        .option-card.selected {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(236, 72, 153, 0.05));
+        }
+
+        .option-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+
+        .option-details h4 {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .option-features {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .option-price {
+            text-align: right;
+        }
+
+        .price-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .price-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .booking-summary {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(236, 72, 153, 0.05));
+            border-radius: 16px;
+            padding: 2rem;
+            position: sticky;
+            top: 100px;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.8rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .summary-total {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--primary);
+            padding-top: 1rem;
+        }
+
+        .wizard-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+        }
+
+        .trip-info-banner {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar dashboard-nav">
+        <div class="nav-brand">
+            <h1>🧭 NAVIGo</h1>
+        </div>
+        <div class="nav-menu">
+            <a href="/home">Home</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/plan">Plan Trip</a>
+            <a href="/booking" class="active">Bookings</a>
+            <a href="/logout" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 style="margin-bottom: 1rem;">🎫 Complete Travel Booking</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">Book all your travel essentials in one place</p>
+
+        <div id="trip-info-banner" class="trip-info-banner" style="display:none;">
+            <h3>📍 Your Trip Plan</h3>
+            <p id="trip-destinations"></p>
+            <p id="trip-dates"></p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+            <div>
+                <!-- Booking Wizard -->
+                <div class="booking-wizard">
+                    <div class="wizard-steps">
+                        <div class="wizard-step active" data-step="1">
+                            <div class="step-circle">1</div>
+                            <div class="step-label">Select Services</div>
+                        </div>
+                        <div class="wizard-step" data-step="2">
+                            <div class="step-circle">2</div>
+                            <div class="step-label">Choose Options</div>
+                        </div>
+                        <div class="wizard-step" data-step="3">
+                            <div class="step-circle">3</div>
+                            <div class="step-label">Travel Details</div>
+                        </div>
+                        <div class="wizard-step" data-step="4">
+                            <div class="step-circle">4</div>
+                            <div class="step-label">Payment</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Select Services -->
+                    <div class="wizard-content active" data-step="1">
+                        <h2>Select Services You Need</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Choose all the services you want to book</p>
+                        
+                        <div class="service-categories">
+                            <div class="service-card" onclick="toggleService('flights')">
+                                <div class="service-icon">✈️</div>
+                                <h3>Flights</h3>
+                                <p>Domestic & International</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('trains')">
+                                <div class="service-icon">🚄</div>
+                                <h3>Trains</h3>
+                                <p>All classes available</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('hotels')">
+                                <div class="service-icon">🏨</div>
+                                <h3>Hotels</h3>
+                                <p>3-5 star properties</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('cabs')">
+                                <div class="service-icon">🚗</div>
+                                <h3>Cabs</h3>
+                                <p>Airport & local transfers</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('auto')">
+                                <div class="service-icon">🛺</div>
+                                <h3>Auto Rickshaw</h3>
+                                <p>Local sightseeing</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('tickets')">
+                                <div class="service-icon">🎫</div>
+                                <h3>Entry Tickets</h3>
+                                <p>Monuments & attractions</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('guides')">
+                                <div class="service-icon">👨‍🏫</div>
+                                <h3>Tour Guides</h3>
+                                <p>Local experts</p>
+                            </div>
+                            <div class="service-card" onclick="toggleService('activities')">
+                                <div class="service-icon">🎯</div>
+                                <h3>Activities</h3>
+                                <p>Adventures & tours</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Choose Options -->
+                    <div class="wizard-content" data-step="2">
+                        <h2>Choose Your Options</h2>
+                        
+                        <!-- Flights Options -->
+                        <div id="flights-options" style="display:none;">
+                            <h3>✈️ Select Flight</h3>
+                            <div class="service-options">
+                                <div class="option-card" onclick="selectOption('flight', 'economy', 5000)">
+                                    <img src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>Economy Class</h4>
+                                        <div class="option-features">✓ 20kg baggage ✓ Meal included ✓ All airlines</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹5,000</div>
+                                        <div class="price-label">per person</div>
+                                    </div>
+                                </div>
+                                <div class="option-card" onclick="selectOption('flight', 'business', 12000)">
+                                    <img src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>Business Class</h4>
+                                        <div class="option-features">✓ 30kg baggage ✓ Premium meals ✓ Priority boarding</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹12,000</div>
+                                        <div class="price-label">per person</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hotels Options -->
+                        <div id="hotels-options" style="display:none; margin-top: 2rem;">
+                            <h3>🏨 Select Hotel</h3>
+                            <div class="service-options">
+                                <div class="option-card" onclick="selectOption('hotel', '3star', 3000)">
+                                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>3-Star Hotel</h4>
+                                        <div class="option-features">✓ Breakfast ✓ WiFi ✓ AC rooms</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹3,000</div>
+                                        <div class="price-label">per night</div>
+                                    </div>
+                                </div>
+                                <div class="option-card" onclick="selectOption('hotel', '4star', 5500)">
+                                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>4-Star Hotel</h4>
+                                        <div class="option-features">✓ All meals ✓ Pool ✓ Gym ✓ Room service</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹5,500</div>
+                                        <div class="price-label">per night</div>
+                                    </div>
+                                </div>
+                                <div class="option-card" onclick="selectOption('hotel', '5star', 10000)">
+                                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>5-Star Luxury</h4>
+                                        <div class="option-features">✓ All meals ✓ Spa ✓ Concierge ✓ Premium amenities</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹10,000</div>
+                                        <div class="price-label">per night</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cabs Options -->
+                        <div id="cabs-options" style="display:none; margin-top: 2rem;">
+                            <h3>🚗 Select Cab Type</h3>
+                            <div class="service-options">
+                                <div class="option-card" onclick="selectOption('cab', 'sedan', 2000)">
+                                    <img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>Sedan (4 seater)</h4>
+                                        <div class="option-features">✓ AC ✓ Professional driver ✓ Fuel included</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹2,000</div>
+                                        <div class="price-label">per day</div>
+                                    </div>
+                                </div>
+                                <div class="option-card" onclick="selectOption('cab', 'suv', 3500)">
+                                    <img src="https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=100" class="option-image">
+                                    <div class="option-details">
+                                        <h4>SUV (7 seater)</h4>
+                                        <div class="option-features">✓ AC ✓ Spacious ✓ Extra luggage space</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹3,500</div>
+                                        <div class="price-label">per day</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tickets Options -->
+                        <div id="tickets-options" style="display:none; margin-top: 2rem;">
+                            <h3>🎫 Entry Tickets</h3>
+                            <div class="service-options">
+                                <div class="option-card" onclick="selectOption('tickets', 'basic', 500)">
+                                    <div class="option-image" style="background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; font-size: 2rem;">🎫</div>
+                                    <div class="option-details">
+                                        <h4>Monument Passes</h4>
+                                        <div class="option-features">✓ All major monuments ✓ Skip-the-line access</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹500</div>
+                                        <div class="price-label">per person</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Guides Options -->
+                        <div id="guides-options" style="display:none; margin-top: 2rem;">
+                            <h3>👨‍🏫 Tour Guides</h3>
+                            <div class="service-options">
+                                <div class="option-card" onclick="selectOption('guide', 'local', 1500)">
+                                    <div class="option-image" style="background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; font-size: 2rem;">👨‍🏫</div>
+                                    <div class="option-details">
+                                        <h4>Local Expert Guide</h4>
+                                        <div class="option-features">✓ Full day tour ✓ Multi-language ✓ Cultural insights</div>
+                                    </div>
+                                    <div class="option-price">
+                                        <div class="price-value">₹1,500</div>
+                                        <div class="price-label">per day</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Travel Details -->
+                    <div class="wizard-content" data-step="3">
+                        <h2>Travel Details</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>👤 Full Name *</label>
+                                <input type="text" id="traveler-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>📧 Email *</label>
+                                <input type="email" id="traveler-email" required>
+                            </div>
+                            <div class="form-group">
+                                <label>📱 Phone *</label>
+                                <input type="tel" id="traveler-phone" required>
+                            </div>
+                            <div class="form-group">
+                                <label>👥 Number of Travelers *</label>
+                                <input type="number" id="num-travelers" min="1" value="1" onchange="updateSummary()">
+                            </div>
+                            <div class="form-group">
+                                <label>📅 Start Date *</label>
+                                <input type="date" id="booking-start-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>📅 End Date *</label>
+                                <input type="date" id="booking-end-date" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>📝 Special Requirements</label>
+                            <textarea id="special-requirements" rows="3" placeholder="Any dietary restrictions, accessibility needs, or special requests..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Payment -->
+                    <div class="wizard-content" data-step="4">
+                        <h2>💳 Payment</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Your booking is almost complete!</p>
+                        
+                        <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 12px;">
+                            <h3>Payment Methods</h3>
+                            <div style="display: grid; gap: 1rem; margin-top: 1rem;">
+                                <div class="option-card" onclick="selectPayment('card')">
+                                    <div style="font-size: 2rem;">💳</div>
+                                    <div class="option-details">
+                                        <h4>Credit/Debit Card</h4>
+                                        <p style="font-size: 0.85rem; color: var(--text-secondary);">Visa, Mastercard, Rupay</p>
+                                    </div>
+                                    <div>→</div>
+                                </div>
+                                <div class="option-card" onclick="selectPayment('upi')">
+                                    <div style="font-size: 2rem;">📱</div>
+                                    <div class="option-details">
+                                        <h4>UPI</h4>
+                                        <p style="font-size: 0.85rem; color: var(--text-secondary);">Google Pay, PhonePe, Paytm</p>
+                                    </div>
+                                    <div>→</div>
+                                </div>
+                                <div class="option-card" onclick="selectPayment('netbanking')">
+                                    <div style="font-size: 2rem;">🏦</div>
+                                    <div class="option-details">
+                                        <h4>Net Banking</h4>
+                                        <p style="font-size: 0.85rem; color: var(--text-secondary);">All major banks</p>
+                                    </div>
+                                    <div>→</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Buttons -->
+                    <div class="wizard-buttons">
+                        <button class="btn btn-secondary" id="prev-btn" onclick="previousStep()" style="display:none;">
+                            ← Previous
+                        </button>
+                        <button class="btn btn-primary" id="next-btn" onclick="nextStep()">
+                            Next →
+                        </button>
+                        <button class="btn btn-primary" id="finish-btn" onclick="completeBooking()" style="display:none;">
+                            ✅ Complete Booking
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Booking Summary Sidebar -->
+            <div>
+                <div class="booking-summary">
+                    <h3>📋 Booking Summary</h3>
+                    <div id="summary-content">
+                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem 0;">
+                            Select services to see pricing
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let selectedServices = new Set();
+        let selectedOptions = {};
+        let totalAmount = 0;
+
+        // Check if coming from plan page
+        window.addEventListener('DOMContentLoaded', () => {
+            const planData = sessionStorage.getItem('tripPlan');
+            if (planData) {
+                const plan = JSON.parse(planData);
+                document.getElementById('trip-info-banner').style.display = 'block';
+                document.getElementById('trip-destinations').textContent = 
+                    `${plan.destinations.length} destinations: ${plan.destinations.map(d => d.name).join(', ')}`;
+                document.getElementById('trip-dates').textContent = 
+                    `📅 ${plan.startDate} to ${plan.endDate} • 📏 ${plan.distance} • ⏱️ ${plan.duration}`;
+            }
+        });
+
+        function toggleService(service) {
+            const card = event.currentTarget;
+            card.classList.toggle('selected');
+            
+            if (selectedServices.has(service)) {
+                selectedServices.delete(service);
+                delete selectedOptions[service];
+            } else {
+                selectedServices.add(service);
+            }
+            
+            updateSummary();
+        }
+
+        function selectOption(category, option, price) {
+            const card = event.currentTarget;
+            
+            // Remove selection from siblings
+            card.parentElement.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            
+            selectedOptions[category] = {option, price};
+            updateSummary();
+        }
+
+        function selectPayment(method) {
+            const card = event.currentTarget;
+            card.parentElement.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+        }
+
+        function updateSummary() {
+            const travelers = parseInt(document.getElementById('num-travelers')?.value || 1);
+            let html = '';
+            let total = 0;
+
+            if (Object.keys(selectedOptions).length === 0) {
+                html = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem 0;">Select services to see pricing</p>';
+            } else {
+                for (const [service, data] of Object.entries(selectedOptions)) {
+                    const amount = data.price * travelers;
+                    total += amount;
+                    
+                    const serviceNames = {
+                        flight: '✈️ Flight',
+                        hotel: '🏨 Hotel',
+                        cab: '🚗 Cab',
+                        tickets: '🎫 Tickets',
+                        guide: '👨‍🏫 Guide'
+                    };
+                    
+                    html += `
+                        <div class="summary-item">
+                            <span>${serviceNames[service]}</span>
+                            <strong>₹${amount.toLocaleString()}</strong>
+                        </div>
+                    `;
+                }
+
+                const gst = Math.round(total * 0.18);
+                html += `
+                    <div class="summary-item">
+                        <span>GST (18%)</span>
+                        <strong>₹${gst.toLocaleString()}</strong>
+                    </div>
+                    <div class="summary-item summary-total">
+                        <span>Total Amount</span>
+                        <strong>₹${(total + gst).toLocaleString()}</strong>
+                    </div>
+                `;
+            }
+
+            document.getElementById('summary-content').innerHTML = html;
+            totalAmount = total;
+        }
+
+        function nextStep() {
+            if (currentStep === 1 && selectedServices.size === 0) {
+                alert('⚠️ Please select at least one service');
+                return;
+            }
+
+            if (currentStep === 1) {
+                // Show options for selected services
+                document.querySelectorAll('[id$="-options"]').forEach(el => el.style.display = 'none');
+                selectedServices.forEach(service => {
+                    const optionsEl = document.getElementById(service + 's-options') || 
+                                     document.getElementById(service + '-options');
+                    if (optionsEl) optionsEl.style.display = 'block';
+                });
+            }
+
+            if (currentStep === 2 && Object.keys(selectedOptions).length === 0) {
+                alert('⚠️ Please select at least one option');
+                return;
+            }
+
+            if (currentStep < 4) {
+                currentStep++;
+                updateWizard();
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateWizard();
+            }
+        }
+
+        function updateWizard() {
+            // Update steps
+            document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 === currentStep) {
+                    step.classList.add('active');
+                } else if (index + 1 < currentStep) {
+                    step.classList.add('completed');
+                }
+            });
+
+            // Update content
+            document.querySelectorAll('.wizard-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelector(`.wizard-content[data-step="${currentStep}"]`).classList.add('active');
+
+            // Update buttons
+            document.getElementById('prev-btn').style.display = currentStep > 1 ? 'block' : 'none';
+            document.getElementById('next-btn').style.display = currentStep < 4 ? 'block' : 'none';
+            document.getElementById('finish-btn').style.display = currentStep === 4 ? 'block' : 'none';
+        }
+
+        async function completeBooking() {
+            const name = document.getElementById('traveler-name').value;
+            const email = document.getElementById('traveler-email').value;
+            const phone = document.getElementById('traveler-phone').value;
+
+            if (!name || !email || !phone) {
+                alert('⚠️ Please fill in all required fields');
+                return;
+            }
+
+            const bookingData = {
+                services: Array.from(selectedServices),
+                options: selectedOptions,
+                traveler: {name, email, phone},
+                travelers: parseInt(document.getElementById('num-travelers').value),
+                startDate: document.getElementById('booking-start-date').value,
+                endDate: document.getElementById('booking-end-date').value,
+                specialRequirements: document.getElementById('special-requirements').value,
+                totalAmount: totalAmount,
+                timestamp: new Date().toISOString()
+            };
+
+            // Save to localStorage
+            let allBookings = JSON.parse(localStorage.getItem('navigo_bookings') || '[]');
+            allBookings.unshift(bookingData);
+            localStorage.setItem('navigo_bookings', JSON.stringify(allBookings));
+
+            // Show success message
+            alert(`✅ Booking Confirmed!\n\nBooking ID: #${Date.now()}\nTotal Amount: ₹${(totalAmount * 1.18).toLocaleString()}\n\nConfirmation sent to ${email}`);
+            
+            // Redirect to bookings page
+            window.location.href = '/booking';
+        }
+
+        // Initialize
+        updateSummary();
+    </script>
+</body>
+</html>
