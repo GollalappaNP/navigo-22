@@ -570,6 +570,14 @@
                     `${plan.destinations.length} destinations: ${plan.destinations.map(d => d.name).join(', ')}`;
                 document.getElementById('trip-dates').textContent = 
                     `📅 ${plan.startDate} to ${plan.endDate} • 📏 ${plan.distance} • ⏱️ ${plan.duration}`;
+                
+                // Pre-fill booking dates if available
+                if (plan.startDate) {
+                    document.getElementById('booking-start-date').value = plan.startDate;
+                }
+                if (plan.endDate) {
+                    document.getElementById('booking-end-date').value = plan.endDate;
+                }
             }
         });
 
@@ -710,34 +718,65 @@
             const name = document.getElementById('traveler-name').value;
             const email = document.getElementById('traveler-email').value;
             const phone = document.getElementById('traveler-phone').value;
+            const startDate = document.getElementById('booking-start-date').value;
+            const endDate = document.getElementById('booking-end-date').value;
 
-            if (!name || !email || !phone) {
+            if (!name || !email || !phone || !startDate || !endDate) {
                 alert('⚠️ Please fill in all required fields');
                 return;
             }
+
+            // Get selected payment method
+            const paymentCard = document.querySelector('.option-card.selected');
+            const paymentMethod = paymentCard ? (paymentCard.textContent.includes('UPI') ? 'upi' : 
+                                                  paymentCard.textContent.includes('Net Banking') ? 'netbanking' : 'card') : 'card';
 
             const bookingData = {
                 services: Array.from(selectedServices),
                 options: selectedOptions,
                 traveler: {name, email, phone},
                 travelers: parseInt(document.getElementById('num-travelers').value),
-                startDate: document.getElementById('booking-start-date').value,
-                endDate: document.getElementById('booking-end-date').value,
+                startDate: startDate,
+                endDate: endDate,
                 specialRequirements: document.getElementById('special-requirements').value,
-                totalAmount: totalAmount,
-                timestamp: new Date().toISOString()
+                paymentMethod: paymentMethod
             };
 
-            // Save to localStorage
-            let allBookings = JSON.parse(localStorage.getItem('navigo_bookings') || '[]');
-            allBookings.unshift(bookingData);
-            localStorage.setItem('navigo_bookings', JSON.stringify(allBookings));
+            // Show loading state
+            const finishBtn = document.getElementById('finish-btn');
+            const originalText = finishBtn.textContent;
+            finishBtn.disabled = true;
+            finishBtn.textContent = 'Processing...';
 
-            // Show success message
-            alert(`✅ Booking Confirmed!\n\nBooking ID: #${Date.now()}\nTotal Amount: ₹${(totalAmount * 1.18).toLocaleString()}\n\nConfirmation sent to ${email}`);
-            
-            // Redirect to bookings page
-            window.location.href = '/booking';
+            try {
+
+                const response = await fetch('/api/bookings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bookingData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const totalWithGST = (totalAmount * 1.18).toLocaleString();
+                    alert(`✅ Booking Confirmed!\n\nBooking ID: #${data.booking_id}\nTotal Amount: ₹${totalWithGST}\n\nConfirmation sent to ${email}`);
+                    
+                    // Redirect to dashboard or bookings page
+                    window.location.href = '/dashboard';
+                } else {
+                    alert(`❌ Booking Failed!\n\n${data.message || 'An error occurred. Please try again.'}`);
+                    finishBtn.disabled = false;
+                    finishBtn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Booking error:', error);
+                alert('❌ An error occurred while processing your booking. Please try again.');
+                finishBtn.disabled = false;
+                finishBtn.textContent = originalText;
+            }
         }
 
         // Initialize
