@@ -4,7 +4,7 @@ NAVIGo - Intelligent Tourism System
 Flask Backend Application
 """
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -20,7 +20,20 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///navigo.db'
+
+# Database connection
+# - Default: local SQLite
+# - Production: set DATABASE_URL (Postgres or SQLite on persistent disk)
+_database_url = os.getenv('DATABASE_URL', '').strip()
+if _database_url:
+    # Some providers still provide postgres:// URLs; SQLAlchemy expects postgresql://
+    if _database_url.startswith('postgres://'):
+        _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _database_url
+else:
+    # Relative SQLite file (local dev). Override with SQLITE_DATABASE_URI if needed.
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLITE_DATABASE_URI', 'sqlite:///navigo.db')
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -154,6 +167,21 @@ def get_weather_data(lat, lon):
 @app.route('/')
 def landing():
     return render_template('landing.html')
+
+@app.route('/manifest.webmanifest')
+def manifest():
+    resp = make_response(send_from_directory('static', 'manifest.webmanifest'))
+    resp.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
+    return resp
+
+@app.route('/sw.js')
+def service_worker():
+    # Service worker must be served from site root for full scope
+    resp = make_response(send_from_directory('static', 'sw.js'))
+    resp.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    # Allow updates without aggressive caching
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 
 @app.route('/login')
@@ -656,7 +684,18 @@ def init_db():
             print(f"Added {len(sample_destinations)} sample destinations")
 
 
+# Ensure tables exist when running under gunicorn (module import)
+if os.getenv('INIT_DB_ON_STARTUP', '1') == '1':
+    try:
+        init_db()
+    except Exception as e:
+        # Don't crash deploy if DB is temporarily unavailable (e.g., first boot)
+        print(f"DB init skipped/failed: {e}")
+
+
 if __name__ == '__main__':
-    init_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.getenv('PORT', '5000'))
+    debug = os.getenv('FLASK_DEBUG', '0') == '1'
+    app.run(debug=debug, host='0.0.0.0', port=port)
+
 

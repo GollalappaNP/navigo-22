@@ -1,6 +1,15 @@
 (() => {
     console.log('NAVIGo UI helpers ready');
 
+    // PWA: register service worker (root scope via /sw.js route)
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch((err) => {
+                console.warn('Service worker registration failed:', err);
+            });
+        });
+    }
+
     const navLinks = document.querySelectorAll('.nav-links a, .nav-menu a');
     navLinks.forEach(link => {
         link.addEventListener('click', () => {

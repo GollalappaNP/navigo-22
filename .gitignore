@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+venv/
+.venv/
+
+.env
+
+# Local SQLite / instance data (avoid committing user data)
+instance/
+*.db
+

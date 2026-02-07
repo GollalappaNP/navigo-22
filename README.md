@@ -130,6 +130,81 @@ navigo 22/
 
 ---
 
+## 🚀 Deployment
+
+### Option A: Deploy on Render (recommended)
+
+- **Create a new Web Service** from your GitHub repo
+- **Build command**: `pip install -r requirements.txt`
+- **Start command**: `gunicorn -b 0.0.0.0:$PORT app:app`
+- **Environment variables**:
+  - **`SECRET_KEY`**: set a long random value
+  - **`OPENWEATHER_API_KEY`**: (optional) for weather
+  - **`GEMINI_API_KEY`**: (optional) for chatbot
+  - **`GOOGLE_MAPS_KEY`**: (optional) for maps on Home page
+  - **`DATABASE_URL`**:
+    - Recommended: use Render Postgres and set `DATABASE_URL` to the provided value
+    - Simple SQLite (non-production): `sqlite:////var/data/navigo.db` (requires a persistent disk)
+
+Note: if you deploy with **SQLite without a persistent disk**, your data may reset on deploy/restart.
+
+### Option B: Deploy with Docker (any platform that supports containers)
+
+Build and run locally:
+
+```bash
+docker build -t navigo-22 .
+docker run -p 8000:8000 -e SECRET_KEY="change-me" navigo-22
+```
+
+Then deploy the same image to your platform (Render / Railway / Fly.io / etc.).
+
+---
+
+## 📱 Make it an app (Web + Play Store)
+
+### Web app (PWA)
+
+This repo now includes a PWA:
+- Manifest: `static/manifest.webmanifest` (served at `/manifest.webmanifest`)
+- Service worker: `static/sw.js` (served at `/sw.js`)
+- Icons: `static/icons/icon-192.png`, `static/icons/icon-512.png`
+
+After deploying on **HTTPS**, open your site in:
+- **Chrome / Edge (desktop)** → install icon in address bar
+- **Android Chrome** → menu → **Install app**
+
+### Play Store (recommended): Trusted Web Activity (TWA)
+
+TWA publishes your website as an Android app that loads your **real deployed site** (no rebuild on every web change).
+
+Prereqs:
+- Your site must be deployed on **HTTPS** (Render is fine)
+- Your PWA must load without major Lighthouse PWA errors
+
+High-level steps:
+1. Pick an Android package name, e.g. `com.yourname.navigo`
+2. Install Bubblewrap:
+   ```bash
+   npm i -g @bubblewrap/cli
+   ```
+3. Initialize a TWA project (run from any folder):
+   ```bash
+   bubblewrap init --manifest=https://YOUR_DOMAIN/manifest.webmanifest
+   ```
+4. Build the APK/AAB:
+   ```bash
+   bubblewrap build
+   ```
+5. Upload the generated **AAB** to Google Play Console.
+
+Important: **Digital Asset Links**
+- To make the TWA fully trusted, your website must host:
+  - `/.well-known/assetlinks.json`
+- Bubblewrap will tell you exactly what JSON to paste there (depends on your keystore + package name).
+
+---
+
 ## 📝 License
 
 MIT License
