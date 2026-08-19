@@ -181,16 +181,21 @@ def get_weather_data(lat, lon):
 def landing():
     return render_template('landing.html')
 
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    static_dir = os.path.join(BASE_DIR, 'static')
+    return send_from_directory(static_dir, filename)
+
 @app.route('/manifest.webmanifest')
 def manifest():
-    resp = make_response(send_from_directory('static', 'manifest.webmanifest'))
+    resp = make_response(send_from_directory(os.path.join(BASE_DIR, 'static'), 'manifest.webmanifest'))
     resp.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
     return resp
 
 @app.route('/sw.js')
 def service_worker():
     # Service worker must be served from site root for full scope
-    resp = make_response(send_from_directory('static', 'sw.js'))
+    resp = make_response(send_from_directory(os.path.join(BASE_DIR, 'static'), 'sw.js'))
     resp.headers['Content-Type'] = 'application/javascript; charset=utf-8'
     # Allow updates without aggressive caching
     resp.headers['Cache-Control'] = 'no-cache'
