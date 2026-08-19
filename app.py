@@ -22,7 +22,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Database connection
-# - Default: local SQLite
+# - Default: local SQLite (/tmp on serverless environments like Vercel)
 # - Production: set DATABASE_URL (Postgres or SQLite on persistent disk)
 _database_url = os.getenv('DATABASE_URL', '').strip()
 if _database_url:
@@ -30,6 +30,9 @@ if _database_url:
     if _database_url.startswith('postgres://'):
         _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = _database_url
+elif os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME') or os.getenv('NOW_REGION'):
+    # In Vercel serverless environment, filesystem is read-only except /tmp
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/navigo.db'
 else:
     # Relative SQLite file (local dev). Override with SQLITE_DATABASE_URI if needed.
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLITE_DATABASE_URI', 'sqlite:///navigo.db')
@@ -718,47 +721,117 @@ def create_review():
 def init_db():
     """Initialize database with sample data if needed"""
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.error(f"db.create_all error: {e}")
+            return
         
-        # Check if destinations already exist
-        if Destination.query.count() == 0:
-            print("Initializing database with sample destinations...")
-            # Add some sample destinations
-            sample_destinations = [
-                Destination(
-                    name="Taj Mahal",
-                    category="Heritage",
-                    state="Uttar Pradesh",
-                    latitude=27.1751,
-                    longitude=78.0421,
-                    image_url="https://images.unsplash.com/photo-1564507592333-c60657eea523",
-                    rating=4.8,
-                    popularity=100,
-                    best_time="October to March",
-                    ideal_weather="15-30",
-                    description="Iconic white marble mausoleum, one of the Seven Wonders of the World"
-                ),
-                Destination(
-                    name="Goa Beaches",
-                    category="Beach",
-                    state="Goa",
-                    latitude=15.2993,
-                    longitude=74.1240,
-                    image_url="https://images.unsplash.com/photo-1512343879784-a960bf40e7f2",
-                    rating=4.6,
-                    popularity=95,
-                    best_time="November to February",
-                    ideal_weather="20-30",
-                    description="Beautiful beaches, vibrant nightlife, and Portuguese heritage"
-                ),
-                # Add more destinations as needed
-            ]
-            
-            for dest in sample_destinations:
-                db.session.add(dest)
-            
-            db.session.commit()
-            print(f"Added {len(sample_destinations)} sample destinations")
+        try:
+            # Add sample demo user if none exist
+            if User.query.count() == 0:
+                demo_user = User(
+                    username="demo",
+                    email="demo@navigo.com",
+                    password_hash=generate_password_hash("demo123")
+                )
+                db.session.add(demo_user)
+                db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"User seed notice: {e}")
+
+        try:
+            # Check if destinations already exist
+            if Destination.query.count() == 0:
+                sample_destinations = [
+                    Destination(
+                        name="Taj Mahal",
+                        category="Heritage",
+                        state="Uttar Pradesh",
+                        latitude=27.1751,
+                        longitude=78.0421,
+                        image_url="https://images.unsplash.com/photo-1564507592333-c60657eea523",
+                        rating=4.8,
+                        popularity=100,
+                        best_time="October to March",
+                        ideal_weather="15-30",
+                        description="Iconic white marble mausoleum, one of the Seven Wonders of the World"
+                    ),
+                    Destination(
+                        name="Goa Beaches",
+                        category="Beach",
+                        state="Goa",
+                        latitude=15.2993,
+                        longitude=74.1240,
+                        image_url="https://images.unsplash.com/photo-1512343879784-a960bf40e7f2",
+                        rating=4.6,
+                        popularity=95,
+                        best_time="November to February",
+                        ideal_weather="20-30",
+                        description="Beautiful beaches, vibrant nightlife, and Portuguese heritage"
+                    ),
+                    Destination(
+                        name="Jaipur",
+                        category="Heritage",
+                        state="Rajasthan",
+                        latitude=26.9124,
+                        longitude=75.7873,
+                        image_url="https://images.unsplash.com/photo-1599661046289-e31897846e41",
+                        rating=4.7,
+                        popularity=90,
+                        best_time="October to March",
+                        ideal_weather="15-28",
+                        description="The Pink City of India, known for majestic forts, palaces, and rich culture"
+                    ),
+                    Destination(
+                        name="Ladakh",
+                        category="Adventure",
+                        state="Jammu and Kashmir",
+                        latitude=34.1526,
+                        longitude=77.5771,
+                        image_url="https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
+                        rating=4.9,
+                        popularity=88,
+                        best_time="June to September",
+                        ideal_weather="10-20",
+                        description="Breathtaking mountain landscapes, high-altitude passes, and Tibetan culture"
+                    ),
+                    Destination(
+                        name="Munnar",
+                        category="Nature",
+                        state="Kerala",
+                        latitude=10.0889,
+                        longitude=77.0595,
+                        image_url="https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272",
+                        rating=4.7,
+                        popularity=85,
+                        best_time="September to March",
+                        ideal_weather="15-25",
+                        description="Lush tea plantations, misty hills, and scenic biodiversity in God's Own Country"
+                    ),
+                    Destination(
+                        name="Varanasi Ghats",
+                        category="Religious",
+                        state="Uttar Pradesh",
+                        latitude=25.3176,
+                        longitude=82.9739,
+                        image_url="https://images.unsplash.com/photo-1561361513-2d000a50f0dc",
+                        rating=4.6,
+                        popularity=84,
+                        best_time="October to March",
+                        ideal_weather="18-30",
+                        description="Spiritual capital of India on the banks of the sacred Ganges River"
+                    )
+                ]
+                
+                for dest in sample_destinations:
+                    db.session.add(dest)
+                
+                db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"Destination seed notice: {e}")
 
 
 # Ensure tables exist when running under gunicorn (module import)
