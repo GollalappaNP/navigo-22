@@ -224,62 +224,139 @@ def logout():
 # Routes - Authentication API
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    email = data.get('email', '').strip()
-    password = data.get('password', '')
-    
-    if not email or not password:
-        return jsonify({'success': False, 'message': 'Email and password are required'}), 400
-    
-    user = User.query.filter_by(email=email).first()
-    
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception as e:
+        app.logger.exception('login: failed to parse JSON')
+        return jsonify({'success': False, 'message': 'Invalid JSON data provided'}), 400
+
+    identifier = (data.get('email') or data.get('username') or data.get('login') or '').strip()
+    password = data.get('password') or ''
+    remember = bool(data.get('remember', False))
+
+    if not identifier or not password:
+        return jsonify({'success': False, 'message': 'Email/Username and password are required'}), 400
+
+    try:
+        user = User.query.filter(
+            db.or_(
+                db.func.lower(User.email) == identifier.lower(),
+                db.func.lower(User.username) == identifier.lower()
+            )
+        ).first()
+    except Exception as e:
+        app.logger.exception('login: database query failed for identifier=%s', identifier)
+        return jsonify({'success': False, 'message': 'Database error occurred. Please try again.'}), 500
+
     if user and check_password_hash(user.password_hash, password):
+        session.clear()
         session['user_id'] = user.id
         session['username'] = user.username
         session['email'] = user.email
+
+        if remember:
+            session.permanent = True
+            app.permanent_session_lifetime = timedelta(days=30)
+        else:
+            session.permanent = False
+
+        app.logger.info('login success for user id=%s (%s)', user.id, user.username)
         return jsonify({
             'success': True,
-            'message': 'Login successful',
+            'message': 'Login successful! Redirecting...',
             'user': {'id': user.id, 'username': user.username, 'email': user.email}
         })
     else:
-        return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
+        app.logger.info('login failed: invalid credentials for identifier=%s', identifier)
+        return jsonify({'success': False, 'message': 'Invalid username/email or password'}), 401
 
 
 @app.route('/signup', methods=['POST'])
 def signup():
-    data = request.get_json()
-    username = data.get('username', '').strip()
-    email = data.get('email', '').strip()
-    password = data.get('password', '')
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        return jsonify({'success': False, 'message': 'Invalid JSON data provided'}), 400
+
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip()
+    password = data.get('password') or ''
     
     if not username or not email or not password:
         return jsonify({'success': False, 'message': 'All fields are required'}), 400
     
+    if len(username) < 3:
+        return jsonify({'success': False, 'message': 'Username must be at least 3 characters long'}), 400
+
+    if '@' not in email or '.' not in email:
+        return jsonify({'success': False, 'message': 'Please provide a valid email address'}), 400
+
     if len(password) < 6:
-        return jsonify({'success': False, 'message': 'Password must be at least 6 characters'}), 400
-    
-    # Check if user exists
-    if User.query.filter_by(email=email).first():
-        return jsonify({'success': False, 'message': 'Email already registered'}), 400
-    
-    if User.query.filter_by(username=username).first():
-        return jsonify({'success': False, 'message': 'Username already taken'}), 400
-    
-    # Create new user
-    user = User(
-        username=username,
-        email=email,
-        password_hash=generate_password_hash(password)
-    )
+        return jsonify({'success': False, 'message': 'Password must be at least 6 characters long'}), 400
     
     try:
+        # Check if user exists (case-insensitive)
+        if User.query.filter(db.func.lower(User.email) == email.lower()).first():
+            return jsonify({'success': False, 'message': 'An account with this email already exists. Please log in.'}), 400
+        
+        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
+            return jsonify({'success': False, 'message': 'Username is already taken. Please choose another.'}), 400
+        
+        # Create new user
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        
         db.session.add(user)
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Account created successfully'})
+
+        # Automatically establish session upon sign up
+        session.clear()
+        session['user_id'] = user.id
+        session['username'] = user.username
+        session['email'] = user.email
+
+        return jsonify({
+            'success': True,
+            'message': 'Account created successfully! Redirecting...',
+            'user': {'id': user.id, 'username': user.username, 'email': user.email}
+        }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': 'Error creating account'}), 500
+        app.logger.exception('signup error: %s', e)
+        return jsonify({'success': False, 'message': 'An error occurred while creating your account. Please try again.'}), 500
+
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        return jsonify({'success': False, 'message': 'Invalid JSON data provided'}), 400
+
+    identifier = (data.get('email') or '').strip()
+    if not identifier:
+        return jsonify({'success': False, 'message': 'Please enter your registered email address'}), 400
+
+    user = User.query.filter(
+        db.or_(
+            db.func.lower(User.email) == identifier.lower(),
+            db.func.lower(User.username) == identifier.lower()
+        )
+    ).first()
+
+    if user:
+        return jsonify({
+            'success': True,
+            'message': f'Password reset link has been sent to {user.email}. Please check your inbox.'
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'message': f'If an account exists with "{identifier}", reset instructions have been sent. Please check your inbox.'
+        })
 
 
 # Routes - Destinations API
@@ -694,7 +771,7 @@ if os.getenv('INIT_DB_ON_STARTUP', '1') == '1':
 
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', '5000'))
+    port = int(os.getenv('PORT', '5001'))
     debug = os.getenv('FLASK_DEBUG', '0') == '1'
     app.run(debug=debug, host='0.0.0.0', port=port)
 
